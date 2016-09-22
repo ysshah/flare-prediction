@@ -100,7 +100,7 @@ def get_data_sets(train_percentage=0.8):
 			loc = bisect.bisect_left(date_list2, date)
 			if larger_sparse(sparseCls, flare_a[loc]):
 				flare_a[loc] = sparseCls
-		print('\rloading data {}%'.format(
+		print('\rLoading data {}%'.format(
 				int(idx * 100 / len(flareData.index))), end='')
 
 	train_labels = flare_a[:split]
