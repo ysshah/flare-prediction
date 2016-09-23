@@ -10,6 +10,10 @@ import bisect
 
 
 class DataSet(object):
+	"""Class for handling data
+	Neatly groups x and y data, shuffles data after each epoch, and
+	provides functions for retrieving the raw data and metadata
+	"""
 
 	def __init__(self, images, labels):
 		"""Construct a dataset.
@@ -35,6 +39,7 @@ class DataSet(object):
 
 	def next_batch(self, batch_size):
 		"""Return the next batch with side 'batch_size' from the data set.
+		Shuffles all the data each epoch
 		"""
 		start = self._index_in_epoch
 		self._index_in_epoch += batch_size
@@ -68,26 +73,22 @@ def get_data_sets(train_percentage=0.8):
 		with open(os.path.join(path, f_str), 'rb') as f:
 			data = pickle.load(f)
 		curl_list.extend(list(np.nan_to_num(data['curls'])))
-		date_list.extend(list(data['dates']))
+		date_list.extend([parse_time(f) for f in data['dates']])
 	curls = np.array(curl_list)
 
-	for idx, date in enumerate(date_list):
-		date_list[idx] = parse_time(date)
-	
 	# sort the curls and the dates according to the date order
 	order = np.argsort(date_list)
 	curls = curls[order]
 	date_list = np.array(date_list)[order]
 
-	##### shift the sequence by one and produce more data points with
+	# TODO: shift the sequence by one and produce more data points with
 	# new curls as the most recent one to the flare
 
 	# reshape the data using np.reshape(len(curls)/4, 256, 256, 4)
 	curls_reshaped = curls[:-2].reshape(int(len(curls)/4), 256, 256, 4)
 	date_list_reshaped = date_list[3::4]
 
-	###### shuffle?
-
+	# find train/test divide location and split the curl data
 	split = int(train_percentage * len(curls_reshaped))
 	train_curls = curls_reshaped[:split]
 	test_curls = curls_reshaped[split:]
@@ -108,9 +109,11 @@ def get_data_sets(train_percentage=0.8):
 		print('\rLoading data {}%'.format(
 				int(idx * 100 / len(flareData.index))), end='')
 
+	# split the label data
 	train_labels = flare_a[:split]
 	test_labels = flare_a[split:]
 
+	# feed data into DataSet objects
 	train = DataSet(train_curls, train_labels)
 	test = DataSet(test_curls, test_labels)
 
@@ -126,19 +129,13 @@ def let2sparse(letrCls):
 	[0,0,0,0,1,0,0,0,0,0]
 	"""
 	first, second, third = letrCls[0], letrCls[1], letrCls[3]
-	#ray = np.zeros(22).astype('int')
 	ray = np.zeros((3,10)).astype('int')
 	if first == 'C':
-		#ray[0] = 1
 		ray[0,0] = 1
 	elif first == 'M':
-		#ray[1] = 1
 		ray[0,1] = 1
 	else:
-		#ray[2] = 1
 		ray[0,2] = 1
-	#ray[int(second) + 2] = 1
-	#ray[int(third) + 12] = 1
 	ray[1,int(second)] = 1
 	ray[2,int(third)] = 1
 
@@ -146,9 +143,9 @@ def let2sparse(letrCls):
 
 
 def larger_sparse(f1, f2):
-	"""Takes in 2 sparse arrays indicating flare size and returns true
+	"""Takes in 2 flare size sparse arrays and returns true
 	if the first one is larger
-	Frist one should be a real flare
+	First one should be a real flare
 	"""
 	indices1, indices2 = np.where(f1==1), np.where(f2==1)
 	num1 = int(''.join(str(x) for x in indices1[1]))
@@ -160,12 +157,18 @@ def larger_sparse(f1, f2):
 
 
 def read_data_sets():
+	"""Reads the proprocessed, saved train and test data from a single file.
+	"""
 	with open('netdata.pkl', 'rb') as f:
 		train, test = pickle.load(f)
 	return train, test
 
 
 if __name__ == '__main__':
+	"""CURRENTLY NOT WORKING
+	Should get the data from get_data_sets and store it in a file,
+	for easy access later.
+	"""
 	train, test = get_data_sets()
 	with open('netdata.pkl', 'wb') as f:
 		pickle.dump((train, test), f)
