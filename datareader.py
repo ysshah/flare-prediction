@@ -73,31 +73,36 @@ def get_data_sets(train_percentage=0.8):
 
 	for idx, date in enumerate(date_list):
 		date_list[idx] = parse_time(date)
+	
+	# sort the curls and the dates according to the date order
+	order = np.argsort(date_list)
+	curls = curls[order]
+	date_list = np.array(date_list)[order]
 
 	##### shift the sequence by one and produce more data points with
 	# new curls as the most recent one to the flare
 
 	# reshape the data using np.reshape(len(curls)/4, 256, 256, 4)
-	curls2 = curls[:-2].reshape(int(len(curls)/4), 256, 256, 4)
-	date_list2 = date_list[3::4]
+	curls_reshaped = curls[:-2].reshape(int(len(curls)/4), 256, 256, 4)
+	date_list_reshaped = date_list[3::4]
 
 	###### shuffle?
 
-	split = int(train_percentage * len(curls2))
-	train_curls = curls2[:split]
-	test_curls = curls2[split:]
+	split = int(train_percentage * len(curls_reshaped))
+	train_curls = curls_reshaped[:split]
+	test_curls = curls_reshaped[split:]
 
 	# fetch the flare size and create the label data
-	flare_a = np.full((len(date_list2), 3, 10), 0, dtype=np.int)
+	flare_a = np.full((len(date_list_reshaped), 3, 10), 0, dtype=np.int)
 	with open('/sanhome/yshah/hekdatadf.pkl','rb') as f:
 		flareData = pickle.load(f)
 	flareData = flareData.sort_values('fl_goescls').reset_index()
 	for idx in range(len(flareData.index)):
 		date = flareData.loc[idx, 'event_peaktime']
-		if ((date < date_list2[-1]) and (date > date_list2[0])):
+		if ((date < date_list_reshaped[-1]) and (date > date_list_reshaped[0])):
 			letrCls = flareData.loc[idx, 'fl_goescls']
 			sparseCls = let2sparse(letrCls)
-			loc = bisect.bisect_left(date_list2, date)
+			loc = bisect.bisect_left(date_list_reshaped, date)
 			if larger_sparse(sparseCls, flare_a[loc]):
 				flare_a[loc] = sparseCls
 		print('\rLoading data {}%'.format(
