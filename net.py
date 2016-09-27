@@ -75,18 +75,30 @@ if __name__ == '__main__':
 	y_conv=tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
 	y_conv_r = tf.reshape(y_conv, [tf.shape(y_conv)[0], 3, 10])
 
-	cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y_conv_r),
+	with tf.name_scope('cross_entropy'):
+		cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y_conv_r),
 												  reduction_indices=[1]))
+		tf.scalar_summary('cross entropy', cross_entropy)
 	train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-	correct_prediction = tf.equal(tf.argmax(y_conv_r,1), tf.argmax(y_,1))
-	accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+	with tf.name_scope('accuracy'):
+		with tf.name_scope('correct_prediction'):
+			correct_prediction = tf.equal(tf.argmax(y_conv_r,1), tf.argmax(y_,1))
+		with tf.name_scope('accuracy'):
+			accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+		tf.scalar_summary('accuracy', accuracy)
+	merged = tf.merge_all_summaries()
+	test_writer = tf.train.SummaryWriter('logdir/test')
 	sess.run(tf.initialize_all_variables())
-	for i in range(1500):
+	for i in range(10000):
 		batch = train.next_batch(50)
 		if (i % 100 == 0):
 			train_accuracy = accuracy.eval(feed_dict={
 					x:batch[0], y_: batch[1], keep_prob: 1.0})
 			print("step %d, training accuracy %g"%(i, train_accuracy))
+			summary, acc = sess.run([merged, accuracy], feed_dict={x:test.images(),
+																   y_:test.labels(),
+																   keep_prob: 1.0})
+			test_writer.add_summary(summary, i)
 		train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
 	print("test accuracy %g"%accuracy.eval(feed_dict={
