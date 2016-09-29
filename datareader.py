@@ -63,8 +63,8 @@ def get_data_sets(train_percentage=0.8):
 	"""Returns DataSet objects for the train and test data
 	train_percentage: decimal indicating the split between the train and test data
 	"""
-
 	# get the data in the pickle files and concatenate them together
+	print('Getting curls from pickle files...')
 	path = '/sanhome/yshah/'
 	file_list = [f for f in os.listdir(path) if (f[:6] == 'curls_')]
 	curl_list = []
@@ -77,6 +77,7 @@ def get_data_sets(train_percentage=0.8):
 	curls = np.array(curl_list)
 
 	# sort the curls and the dates according to the date order
+	print('Sorting curls and dates...')
 	order = np.argsort(date_list)
 	curls = curls[order]
 	date_list = np.array(date_list)[order]
@@ -85,6 +86,7 @@ def get_data_sets(train_percentage=0.8):
 	# new curls as the most recent one to the flare
 
 	# reshape the data using np.reshape(len(curls)/4, 256, 256, 4)
+	print('Reshaping data...')
 	curls_reshaped = curls[:-2].reshape(int(len(curls)/4), 256, 256, 4)
 	date_list_reshaped = date_list[3::4]
 
@@ -94,7 +96,8 @@ def get_data_sets(train_percentage=0.8):
 	test_curls = curls_reshaped[split:]
 
 	# fetch the flare size and create the label data
-	flare_a = np.full((len(date_list_reshaped), 3, 10), 0, dtype=np.int)
+	flare_a = np.full((len(date_list_reshaped), 4), 0, dtype=np.int)
+	flare_a[:,0] = 1
 	with open('/sanhome/yshah/hekdatadf.pkl','rb') as f:
 		flareData = pickle.load(f)
 	flareData = flareData.sort_values('fl_goescls').reset_index()
@@ -106,7 +109,7 @@ def get_data_sets(train_percentage=0.8):
 			loc = bisect.bisect_left(date_list_reshaped, date)
 			if larger_sparse(sparseCls, flare_a[loc]):
 				flare_a[loc] = sparseCls
-		print('\rLoading data {}%'.format(
+		print('\rFetching flare size data... {}%'.format(
 				int(idx * 100 / len(flareData.index))), end='')
 
 	# split the label data
@@ -114,30 +117,27 @@ def get_data_sets(train_percentage=0.8):
 	test_labels = flare_a[split:]
 
 	# feed data into DataSet objects
+	print('\nCreating DataSet objects...')
 	train = DataSet(train_curls, train_labels)
 	test = DataSet(test_curls, test_labels)
+	print('Data loading complete.')
 
 	return train, test
 
 
 def let2sparse(letrCls):
 	"""Converts letter designated GOES classes in the format 'M2.4'
-	to a sparse array where each letter, digit is reflected by a 1
-	in a certain position of a 3x10 array. eg:
-	[0,1,0,0,0,0,0,0,0,0]
-	[0,0,1,0,0,0,0,0,0,0]
-	[0,0,0,0,1,0,0,0,0,0]
+	to a sparse array indicating the predicted output like so
+	[0,1,0]
 	"""
-	first, second, third = letrCls[0], letrCls[1], letrCls[3]
-	ray = np.zeros((3,10)).astype('int')
+	first = letrCls[0]
+	ray = np.zeros(4).astype('int')
 	if first == 'C':
-		ray[0,0] = 1
+		ray[1] = 1
 	elif first == 'M':
-		ray[0,1] = 1
+		ray[2] = 1
 	else:
-		ray[0,2] = 1
-	ray[1,int(second)] = 1
-	ray[2,int(third)] = 1
+		ray[3] = 1
 
 	return ray
 
@@ -147,13 +147,11 @@ def larger_sparse(f1, f2):
 	if the first one is larger
 	First one should be a real flare
 	"""
-	indices1, indices2 = np.where(f1==1), np.where(f2==1)
-	num1 = int(''.join(str(x) for x in indices1[1]))
-	if len(indices2[0]) == 0:
-		num2 = 0
+	if f2[0] == 1:
+		return True
 	else:
-		num2 = int(''.join(str(x) for x in indices2[1]))
-	return (num1 > num2)
+		indices1, indices2 = np.where(f1==1), np.where(f2==1)
+		return (indices1[0][0] > indices2[0][0])
 
 
 def read_data_sets():
