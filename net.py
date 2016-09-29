@@ -42,7 +42,7 @@ if __name__ == '__main__':
 	sess = tf.InteractiveSession()
 
 	x = tf.placeholder(tf.float32, shape=[None, PIX, PIX, BUNDLE])
-	y_ = tf.placeholder(tf.float32, shape=[None, 3, 10])
+	y_ = tf.placeholder(tf.float32, shape=[None, 4])
 
 	W_conv1 = weight_variable([8, 8, 4, 32])
 	b_conv1 = bias_variable([32])
@@ -69,20 +69,20 @@ if __name__ == '__main__':
 	keep_prob = tf.placeholder(tf.float32)
 	h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
 
-	W_fc2 = weight_variable([1024, 30])
-	b_fc2 = bias_variable([30])
+	W_fc2 = weight_variable([1024, 4])
+	b_fc2 = bias_variable([4])
 
 	y_conv=tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
-	y_conv_r = tf.reshape(y_conv, [tf.shape(y_conv)[0], 3, 10])
+	# y_conv_r = tf.reshape(y_conv, [tf.shape(y_conv)[0], 3, 10])
 
 	with tf.name_scope('cross_entropy'):
-		cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y_conv_r),
+		cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(y_conv),
 												  reduction_indices=[1]))
 		tf.scalar_summary('cross entropy', cross_entropy)
 	train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 	with tf.name_scope('accuracy'):
 		with tf.name_scope('correct_prediction'):
-			correct_prediction = tf.equal(tf.argmax(y_conv_r,1), tf.argmax(y_,1))
+			correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
 		with tf.name_scope('accuracy'):
 			accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 		tf.scalar_summary('accuracy', accuracy)
