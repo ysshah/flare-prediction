@@ -40,23 +40,36 @@ def variable_summaries(var, name):
 		tf.histogram_summary(name, var)
 
 
-def conv_pool_layer(input_tensor, weight_shape, stride, layer_name):
-	"""Reusable code for one convolution-pooling layer
+def nn_layer(input_tensor, weight_shape, layer_name, relu=True,
+			 stride=None):
+	"""Reusablee code for one nn layer
 	"""
 	with tf.name_scope(layer_name):
-		with tf.name_scope('w_conv'):
-			W_conv = weight_variable(weight_shape)
-			variable_summaries(W_conv, layer_name + '/w_conv')
-		with tf.name_scope('b_conv'):
-			b_conv = bias_variable([weight_shape[-1]])
-			variable_summaries(b_conv, layer_name + '/b_conv')
-		with tf.name_scope('conv'):
-			preactivate = conv2d(input_tensor, W_conv, stride) + b_conv
-			tf.histogram_summary(layer_name + '/pre_activations', preactivate)
-		activations = tf.nn.relu(preactivate, 'activation')
+		with tf.name_scope('weights'):
+			W = weight_variable(weight_shape)
+			variable_summaries(W, layer_name + '/weights')
+		with tf.name_scope('biases'):
+			b = bias_variable(weight_shape[-1:])
+			variable_summaries(b, layer_name + '/biases')
+
+		if stride is None:
+			with tf.name_scope('Wx_plus_b'):
+				preactivate = tf.matmul(input_tensor, W) + b
+		else:
+			with tf.name_scope('conv'):
+				preactivate = conv2d(input_tensor, W, stride) + b
+		tf.histogram_summary(layer_name + '/Wx_plus_b', preactivate)
+
+		if relu:
+			activations = tf.nn.relu(preactivate, 'relu')
+		else:
+			activations = tf.nn.softmax(preactivate, 'softmax')
 		tf.histogram_summary(layer_name + '/activations', activations)
-		return max_pool_2x2(activations)
-	
+
+		if stride is not None:
+			activations = max_pool_2x2(activations)
+		return activations
+
 
 # width/height of input image
 PIX = 256
@@ -72,29 +85,23 @@ if __name__ == '__main__':
 	tf.reset_default_graph()
 	sess = tf.InteractiveSession()
 
-	x = tf.placeholder(tf.float32, shape=[None, PIX, PIX, BUNDLE])
-	y_ = tf.placeholder(tf.float32, shape=[None, 4])
+	x = tf.placeholder(tf.float32, shape=[None, PIX, PIX, BUNDLE],
+			name='images')
+	y_ = tf.placeholder(tf.float32, shape=[None, 4], name='labels')
 
-	conv_pool1 = conv_pool_layer(x, [8, 8, 4, 32], 4, 'conv_pool_1')
-	conv_pool2 = conv_pool_layer(conv_pool1, [4, 4, 32, 64], 2, 'conv_pool_2')
-	conv_pool3 = conv_pool_layer(conv_pool2, [4, 4, 64, 64], 2, 'conv_pool_3')
+	conv_pool1 = nn_layer(x, [8, 8, 4, 32], 'conv_pool_1', stride=4)
+	conv_pool2 = nn_layer(conv_pool1, [4, 4, 32, 64], 'conv_pool_2', stride=2)
+	conv_pool3 = nn_layer(conv_pool2, [4, 4, 64, 64], 'conv_pool_3', stride=2)
 
-	# reshaped to 2x2x64 and fed into a 1024 neuron fully connected layer
-	W_fc1 = weight_variable([2 * 2 * 64, 1024])
-	b_fc1 = bias_variable([1024])
-
-	h_pool3_flat = tf.reshape(conv_pool3, [-1, 2*2*64])
-	h_fc1 = tf.nn.relu(tf.matmul(h_pool3_flat, W_fc1) + b_fc1)
+	pool3_flat = tf.reshape(conv_pool3, [-1, 2*2*64])
+	fc1 = nn_layer(pool3_flat, [2*2*64, 1024], 'fc_relu')
 
 	with tf.name_scope('dropout'):
-		keep_prob = tf.placeholder(tf.float32)
+		keep_prob = tf.placeholder(tf.float32, keep_prob)
 		tf.scalar_summary('dropout_keep_probability', keep_prob)
-		h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
-
-	W_fc2 = weight_variable([1024, 4])
-	b_fc2 = bias_variable([4])
-
-	y_conv=tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+		fc1_drop = tf.nn.dropout(fc1, keep_prob, keep_prob)
+	
+	y_conv = nn_layer(fc1_drop, [1024, 4], 'fc_softmax', relu=False)
 
 	with tf.name_scope('cross_entropy'):
 		cross_entropy = tf.reduce_mean(-tf.reduce_sum(y_ * tf.log(
