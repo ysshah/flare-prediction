@@ -4,6 +4,8 @@
 
 import tensorflow as tf
 import datareader
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 def weight_variable(shape):
@@ -40,9 +42,12 @@ def variable_summaries(var, name):
 		tf.histogram_summary(name, var)
 
 
-def nn_layer(input_tensor, weight_shape, layer_name, relu=True,
-			 stride=None):
+def nn_layer(input_tensor, weight_shape, layer_name, relu=True, stride=None):
 	"""Reusablee code for one nn layer
+	- Bias shape determined using the last dim of the weight shape
+	- Defaults to using ReLU unless 'relu' is set to false. Uses softmax then.
+	- Stride used to determine if convolution is necessary. If left at none,
+	a fully connected layer is created.
 	"""
 	with tf.name_scope(layer_name):
 		with tf.name_scope('weights'):
@@ -71,12 +76,29 @@ def nn_layer(input_tensor, weight_shape, layer_name, relu=True,
 		return activations
 
 
-# width/height of input image
-PIX = 256
-# number of images bundled together for time series info
-BUNDLE = 4
-# format of the flares is a 3*10 sparse array where the first array
-# indicates C,M, or X class, second is the next digit, third is next, etc
+def save_distribution(predictions, actual):
+	"""Saves figures showing the prediction distribution for the net
+	alongside the actual distribution
+	"""
+	p_binned = np.bincount(predictions)
+	p_binned = np.pad(p_binned, (0, 4-len(p_binned)), 'constant',
+			constant_values=0)
+	labels = ['no flare', 'C flare', 'M flare', 'X flare']
+	plt.figure(figsize=(12,6))
+	plt.subplot(121)
+	plt.pie(p_binned, labels=labels)
+	plt.title('Distribution of predictions at step {}'.format(i))
+
+	a_binned = np.bincount(tf.argmax(actual, 1).eval())
+	a_binned = np.pad(a_binned, (0, 4-len(a_binned)), 'constant',
+			constant_values=0)
+	plt.subplot(122)
+	plt.pie(a_binned, labels=labels)
+	plt.title('Actual distribution at step {}'.format(i))
+	try:
+		plt.savefig('figs/step{}.pdf'.format(i))
+	except FileNotFoundError:
+		print('Please create sub directory "figs" to save figures to.')
 
 
 if __name__ == '__main__':
@@ -85,8 +107,10 @@ if __name__ == '__main__':
 	tf.reset_default_graph()
 	sess = tf.InteractiveSession()
 
-	x = tf.placeholder(tf.float32, shape=[None, PIX, PIX, BUNDLE],
+	# 256x256 is image size; 4 in number of channels bundled together
+	x = tf.placeholder(tf.float32, shape=[None, 256, 256, 4],
 			name='images')
+	# 4 output categories: no flare, C, M, or X
 	y_ = tf.placeholder(tf.float32, shape=[None, 4], name='labels')
 
 	conv_pool1 = nn_layer(x, [8, 8, 4, 32], 'conv_pool_1', stride=4)
@@ -97,9 +121,9 @@ if __name__ == '__main__':
 	fc1 = nn_layer(pool3_flat, [2*2*64, 1024], 'fc_relu')
 
 	with tf.name_scope('dropout'):
-		keep_prob = tf.placeholder(tf.float32, keep_prob)
+		keep_prob = tf.placeholder(tf.float32, name='keep_prob')
 		tf.scalar_summary('dropout_keep_probability', keep_prob)
-		fc1_drop = tf.nn.dropout(fc1, keep_prob, keep_prob)
+		fc1_drop = tf.nn.dropout(fc1, keep_prob)
 	
 	y_conv = nn_layer(fc1_drop, [1024, 4], 'fc_softmax', relu=False)
 
@@ -128,15 +152,19 @@ if __name__ == '__main__':
 		if (i % 100 == 0):
 			summary, acc = sess.run([merged, accuracy], feed_dict={
 					x: test.images(), y_: test.labels(), keep_prob: 1.0})
-			output_prediction = tf.argmax(y_conv, 1).eval(feed_dict={
-					x: batch[0][:1], keep_prob: 1.0})
 			test_writer.add_summary(summary, i)
-			print("step {}, training accuracy {:.3f}, prediction {}".format(
-					i, acc, output_prediction))
-		else:
-			summary, _ = sess.run([merged, train_step], feed_dict={
+			print("step {}, training accuracy {:.3f}".format(i, acc))
+
+			predictions = tf.argmax(y_conv, 1).eval(feed_dict={
+					x: batch[0], keep_prob: 1.0})
+			save_distribution(predictions, batch[1])
+
+		if (i % 50 == 0):
+			summary = sess.run(merged, feed_dict={
 					x: batch[0], y_: batch[1], keep_prob: 0.5})
 			train_writer.add_summary(summary, i)
+		train_step.run(feed_dict={
+				x: batch[0], y_: batch[1], keep_prob: 0.5})
 
 	print("test accuracy %g"%accuracy.eval(feed_dict={
 		  x: test.images(), y_: test.labels(), keep_prob: 1.0}))
