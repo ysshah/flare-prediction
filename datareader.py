@@ -85,9 +85,14 @@ def get_data_sets(train_percentage=0.8):
 	# TODO: shift the sequence by one and produce more data points with
 	# new curls as the most recent one to the flare
 
-	# reshape the data using np.reshape(len(curls)/4, 256, 256, 4)
+	# reshape the data from nx256x256 to n/4 x 256 x 256 x 4
 	print('Reshaping data...')
-	curls_reshaped = curls[:-2].reshape(int(len(curls)/4), 256, 256, 4)
+	n_bundles = int(len(curls)/4)
+	curls = curls[:n_bundles * 4].reshape(n_bundles, 4, 256, 256)
+	curls_reshaped = np.zeros((n_bundles, 256, 256, 4))
+	for i in range(len(curls_reshaped)):
+		for j in range(4):
+			curls_reshaped[i,:,:,j::4] = curls[i,j].reshape(256,256,1)
 	date_list_reshaped = date_list[3::4]
 
 	# find train/test divide location and split the curl data
@@ -98,7 +103,7 @@ def get_data_sets(train_percentage=0.8):
 	# fetch the flare size and create the label data
 	flare_a = np.full((len(date_list_reshaped), 4), 0, dtype=np.int)
 	flare_a[:,0] = 1
-	with open('/sanhome/yshah/hekdatadf.pkl','rb') as f:
+	with open(path + 'hekdatadf.pkl','rb') as f:
 		flareData = pickle.load(f)
 	flareData = flareData.sort_values('fl_goescls').reset_index()
 	for idx in range(len(flareData.index)):
