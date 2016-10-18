@@ -99,6 +99,7 @@ def save_distribution(predictions, actual):
 		plt.savefig('figs/step{}.pdf'.format(i))
 	except FileNotFoundError:
 		print('Please create sub directory "figs" to save figures to.')
+	plt.close()
 
 
 if __name__ == '__main__':
