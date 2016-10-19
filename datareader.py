@@ -93,12 +93,13 @@ def get_data_sets(train_percentage=0.8):
 	for i in range(len(curls_reshaped)):
 		for j in range(4):
 			curls_reshaped[i,:,:,j::4] = curls[i,j].reshape(256,256,1)
+	curls_final = np.clip(curls_reshaped, 1, 99)
 	date_list_reshaped = date_list[3::4]
 
 	# find train/test divide location and split the curl data
-	split = int(train_percentage * len(curls_reshaped))
-	train_curls = curls_reshaped[:split]
-	test_curls = curls_reshaped[split:]
+	split = int(train_percentage * len(curls_final))
+	train_curls = curls_final[:split]
+	test_curls = curls_final[split:]
 
 	# fetch the flare size and create the label data
 	flare_a = np.full((len(date_list_reshaped), 4), 0, dtype=np.int)
