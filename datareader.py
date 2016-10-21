@@ -78,28 +78,35 @@ def get_data_sets(train_percentage=0.8):
 
 	# sort the curls and the dates according to the date order
 	print('Sorting curls and dates...')
-	order = np.argsort(date_list)
+	order = np.argsort(date_list)[::-1]  # descending
 	curls = curls[order]
 	date_list = np.array(date_list)[order]
 
-	# TODO: shift the sequence by one and produce more data points with
-	# new curls as the most recent one to the flare
-
-	# reshape the data from nx256x256 to n/4 x 256 x 256 x 4
-	print('Reshaping data...')
-	n_bundles = int(len(curls)/4)
-	curls = curls[:n_bundles * 4].reshape(n_bundles, 4, 256, 256)
-	curls_reshaped = np.zeros((n_bundles, 256, 256, 4))
-	for i in range(len(curls_reshaped)):
-		for j in range(4):
-			curls_reshaped[i,:,:,j::4] = curls[i,j].reshape(256,256,1)
-	curls_final = np.clip(curls_reshaped, 1, 99)
-	date_list_reshaped = date_list[3::4]
+	print('Reshaping data...', end='')
+	dropped = 0
+	curls_reshaped = np.zeros((len(curls)-3, 256, 256, 4))
+	for i in range(len(curls) - 3):
+		bundle = np.zeros((256, 256, 4))
+		bundle[:,:,0] = curls[i]
+		date_o = date_list[i]
+		for j in range(1,4):
+			date_t = date_list[i+j]
+			td = date_o - date_t
+			seconds = td.total_seconds() - 21600 * j
+			# append next image if it's within an hour of being 6 hours ahead
+			if np.abs(seconds) <= 3600:
+				bundle[:,:,j] = curls[i+j]
+			else:
+				bundle[:,:,j] = np.zeros((256, 256))
+				dropped += 1
+		curls_reshaped[i,:,:,:] = bundle
+	date_list_reshaped = date_list[:-3]
+	print(' {} skipped.'.format(dropped))
 
 	# find train/test divide location and split the curl data
-	split = int(train_percentage * len(curls_final))
-	train_curls = curls_final[:split]
-	test_curls = curls_final[split:]
+	split = int(train_percentage * len(curls_reshaped))
+	train_curls = curls_reshaped[:split]
+	test_curls = curls_reshaped[split:]
 
 	# fetch the flare size and create the label data
 	flare_a = np.full((len(date_list_reshaped), 4), 0, dtype=np.int)

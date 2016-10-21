@@ -104,7 +104,10 @@ def save_distribution(predictions, actual):
 
 if __name__ == '__main__':
 	train, test = datareader.get_data_sets()
+	main(train, test)
 
+
+def main(train, test):
 	tf.reset_default_graph()
 	sess = tf.InteractiveSession()
 
