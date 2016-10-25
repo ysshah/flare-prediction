@@ -191,8 +191,8 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
         last = dateutil.parser.parse(data['dates'][-1])
         if (last - first) < (span - cadence):
             N_complete = len(data['dates'])
-            print(('Updating latest pickle file. '
-                + 'Fetching data from {:%x %X} to {:%x %X}...'.format(
+            print('Updating latest pickle file. '
+                'Fetching data from {:%x %X} to {:%x %X}...'.format(
                 last + cadence, first + span))
             df = fetch(start=(last + cadence), end_or_span=(first + span),
                 cadence=cadence, **fetch_args)
