@@ -7,6 +7,7 @@ import pickle
 import os
 from sunpy.time import parse_time
 import bisect
+from datetime import timedelta
 
 
 class DataSet(object):
@@ -65,7 +66,7 @@ def get_data_sets(train_percentage=0.8):
 	"""
 	# get the data in the pickle files and concatenate them together
 	print('Getting curls from pickle files...')
-	path = '/sanhome/yshah/'
+	path = '/sanhome/yshah/Curls/'
 	file_list = [f for f in os.listdir(path) if (f[:6] == 'curls_')]
 	curl_list = []
 	date_list = []
@@ -76,13 +77,12 @@ def get_data_sets(train_percentage=0.8):
 		date_list.extend([parse_time(f) for f in data['dates']])
 	curls = np.array(curl_list)
 
-	# sort the curls and the dates according to the date order
 	print('Sorting curls and dates...')
 	order = np.argsort(date_list)[::-1]  # descending
 	curls = curls[order]
 	date_list = np.array(date_list)[order]
 
-	print('Reshaping data...', end='')
+	print('Reshaping data... ', end='')
 	dropped = 0
 	curls_reshaped = np.zeros((len(curls)-3, 256, 256, 4))
 	for i in range(len(curls) - 3):
@@ -93,44 +93,62 @@ def get_data_sets(train_percentage=0.8):
 			date_t = date_list[i+j]
 			td = date_o - date_t
 			seconds = td.total_seconds() - 21600 * j
-			# append next image if it's within an hour of being 6 hours ahead
+			# append next image if it's within an hour of being 6 hours before
 			if np.abs(seconds) <= 3600:
 				bundle[:,:,j] = curls[i+j]
 			else:
-				bundle[:,:,j] = np.zeros((256, 256))
 				dropped += 1
 		curls_reshaped[i,:,:,:] = bundle
-	date_list_reshaped = date_list[:-3]
-	print(' {} skipped.'.format(dropped))
+	dates_reshaped = date_list[:-3]
+	print('{} skipped.'.format(dropped))
 
-	# find train/test divide location and split the curl data
+	# fetch the flare size and create the label data
+	flare_a = np.full((len(dates_reshaped), 4), 0, dtype=np.int)
+	flare_a[:,0] = 1
+	with open('/sanhome/yshah/hekdatadf.pkl','rb') as f:
+		flareData = pickle.load(f)
+	flareData = flareData.sort_values('event_peaktime').reset_index()
+	for idx in range(len(dates_reshaped)):
+		date = dates_reshaped[idx]
+		loc_in_flares = bisect.bisect_left(flareData['event_peaktime'], date)
+		max_class = 'A'
+		while ((loc_in_flares < len(flareData.index)) and
+			  (date + timedelta(days=1) >= flareData.loc[loc_in_flares, 'event_peaktime'])):
+			class_at_time = flareData.loc[loc_in_flares, 'fl_goescls']
+			if (class_at_time > max_class):
+				max_class = class_at_time
+			loc_in_flares += 1
+		flare_a[idx] = let2sparse(max_class)
+		print('\rBuilding label data... {}%'.format(
+				int(idx * 100 / len(flareData.index))), end='')
+	
+	# remove data points for which we do not have all of the flare data
+	min_fl_date = flareData.loc[0, 'event_peaktime']
+	max_fl_date = flareData.loc[len(flareData.index) - 1, 'event_peaktime']
+	min_loc = bisect.bisect_left(dates_reshaped, min_fl_date)
+	max_loc = bisect.bisect_left(dates_reshaped, max_fl_date - timedelta(days=1))
+	curls_reshaped = curls_reshaped[min_loc:max_loc]
+	dates_reshaped = dates_reshaped[min_loc:max_loc]
+	flare_a = flare_a[min_loc:max_loc]
+
+	# randomize the data order
+	print('\nShuffling the data''s initial order')
+	perm = np.arange(len(curls_reshaped))
+	np.random.shuffle(perm)
+	curls_reshaped = curls_reshaped[perm]
+	flare_a = flare_a[perm]
+	dates_reshaped = dates_reshaped[perm]
+
+	# find train/test divide location and split the data
+	print('Splitting the data')
 	split = int(train_percentage * len(curls_reshaped))
 	train_curls = curls_reshaped[:split]
 	test_curls = curls_reshaped[split:]
-
-	# fetch the flare size and create the label data
-	flare_a = np.full((len(date_list_reshaped), 4), 0, dtype=np.int)
-	flare_a[:,0] = 1
-	with open(path + 'hekdatadf.pkl','rb') as f:
-		flareData = pickle.load(f)
-	flareData = flareData.sort_values('fl_goescls').reset_index()
-	for idx in range(len(flareData.index)):
-		date = flareData.loc[idx, 'event_peaktime']
-		if ((date < date_list_reshaped[-1]) and (date > date_list_reshaped[0])):
-			letrCls = flareData.loc[idx, 'fl_goescls']
-			sparseCls = let2sparse(letrCls)
-			loc = bisect.bisect_left(date_list_reshaped, date)
-			if larger_sparse(sparseCls, flare_a[loc]):
-				flare_a[loc] = sparseCls
-		print('\rFetching flare size data... {}%'.format(
-				int(idx * 100 / len(flareData.index))), end='')
-
-	# split the label data
 	train_labels = flare_a[:split]
 	test_labels = flare_a[split:]
 
 	# feed data into DataSet objects
-	print('\nCreating DataSet objects...')
+	print('Creating DataSet objects...')
 	train = DataSet(train_curls, train_labels)
 	test = DataSet(test_curls, test_labels)
 	print('Data loading complete.')
@@ -145,7 +163,9 @@ def let2sparse(letrCls):
 	"""
 	first = letrCls[0]
 	ray = np.zeros(4).astype('int')
-	if first == 'C':
+	if first == 'A':
+		ray[0] = 1
+	elif first == 'C':
 		ray[1] = 1
 	elif first == 'M':
 		ray[2] = 1
@@ -153,18 +173,6 @@ def let2sparse(letrCls):
 		ray[3] = 1
 
 	return ray
-
-
-def larger_sparse(f1, f2):
-	"""Takes in 2 flare size sparse arrays and returns true
-	if the first one is larger
-	First one should be a real flare
-	"""
-	if f2[0] == 1:
-		return True
-	else:
-		indices1, indices2 = np.where(f1==1), np.where(f2==1)
-		return (indices1[0][0] > indices2[0][0])
 
 
 def read_data_sets():

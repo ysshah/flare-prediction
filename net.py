@@ -76,7 +76,7 @@ def nn_layer(input_tensor, weight_shape, layer_name, relu=True, stride=None):
 		return activations
 
 
-def save_distribution(predictions, actual):
+def save_distribution(predictions, actual, i):
 	"""Saves figures showing the prediction distribution for the net
 	alongside the actual distribution
 	"""
@@ -100,11 +100,6 @@ def save_distribution(predictions, actual):
 	except FileNotFoundError:
 		print('Please create sub directory "figs" to save figures to.')
 	plt.close()
-
-
-if __name__ == '__main__':
-	train, test = datareader.get_data_sets()
-	main(train, test)
 
 
 def main(train, test):
@@ -150,6 +145,12 @@ def main(train, test):
 	train_writer = tf.train.SummaryWriter('logdir/train', sess.graph)
 	test_writer = tf.train.SummaryWriter('logdir/test')
 	sess.run(tf.initialize_all_variables())
+	
+	saver = tf.train.Saver()
+	try:
+		saver.restore(sess, 'model.ckpt')
+	except:
+		pass
 
 	for i in range(10000):
 		batch = train.next_batch(50)
@@ -161,7 +162,7 @@ def main(train, test):
 
 			predictions = tf.argmax(y_conv, 1).eval(feed_dict={
 					x: batch[0], keep_prob: 1.0})
-			save_distribution(predictions, batch[1])
+			save_distribution(predictions, batch[1], i)
 
 		if (i % 50 == 0):
 			summary = sess.run(merged, feed_dict={
@@ -172,3 +173,8 @@ def main(train, test):
 
 	print("test accuracy %g"%accuracy.eval(feed_dict={
 		  x: test.images(), y_: test.labels(), keep_prob: 1.0}))
+
+
+if __name__ == '__main__':
+	train, test = datareader.get_data_sets()
+	main(train, test)
