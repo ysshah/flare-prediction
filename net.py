@@ -149,6 +149,8 @@ def main(train, test):
 	saver = tf.train.Saver()
 	try:
 		saver.restore(sess, 'model.ckpt')
+	except:
+		pass
 
 	for i in range(10000):
 		batch = train.next_batch(50)
