@@ -196,6 +196,9 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
                 last + cadence, first + span))
             df = fetch(start=(last + cadence), end_or_span=(first + span),
                 cadence=cadence, **fetch_args)
+            if df.empty:
+                print('No more HMI data available.')
+                return
             curls = np.empty((N_complete + df.shape[0], *image_dim_lowres))
             curls[:N_complete] = data['curls']
 
@@ -221,6 +224,9 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
     while date < datetime.now():
         print('Fetching data from {} to {}...'.format(date, date + span))
         df = fetch(start=date, end_or_span=span, cadence=cadence, **fetch_args)
+        if df.empty:
+            print('No more HMI data available.')
+            return
 
         curls = np.empty((df.shape[0], *image_dim_lowres))
         start = datetime.now()
