@@ -152,7 +152,7 @@ def main(train, test):
 	except:
 		pass
 
-	for i in range(10000):
+	for i in range(100000):
 		batch = train.next_batch(50)
 		if (i % 100 == 0):
 			summary, acc = sess.run([merged, accuracy], feed_dict={
@@ -163,11 +163,13 @@ def main(train, test):
 			predictions = tf.argmax(y_conv, 1).eval(feed_dict={
 					x: batch[0], keep_prob: 1.0})
 			save_distribution(predictions, batch[1], i)
+			save_path = saver.save(sess, 'model.ckpt')
 
 		if (i % 50 == 0):
 			summary = sess.run(merged, feed_dict={
 					x: batch[0], y_: batch[1], keep_prob: 0.5})
 			train_writer.add_summary(summary, i)
+
 		train_step.run(feed_dict={
 				x: batch[0], y_: batch[1], keep_prob: 0.5})
 
