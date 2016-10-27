@@ -187,8 +187,8 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
     if currentFiles:
         with open(currentFiles[-1], 'rb') as f:
             data = pickle.load(f)
-        first = dateutil.parser.parse(data['dates'][0])
-        last = dateutil.parser.parse(data['dates'][-1])
+        first = dateutil.parser.parse(data['dates'][0]).replace(tzinfo=None)
+        last = dateutil.parser.parse(data['dates'][-1]).replace(tzinfo=None)
         if (last - first) < (span - cadence):
             N_complete = len(data['dates'])
             print('Updating latest pickle file. '
@@ -196,6 +196,9 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
                 last + cadence, first + span))
             df = fetch(start=(last + cadence), end_or_span=(first + span),
                 cadence=cadence, **fetch_args)
+            if df.empty:
+                print('No more HMI data available.')
+                return
             curls = np.empty((N_complete + df.shape[0], *image_dim_lowres))
             curls[:N_complete] = data['curls']
 
@@ -221,6 +224,9 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
     while date < datetime.now():
         print('Fetching data from {} to {}...'.format(date, date + span))
         df = fetch(start=date, end_or_span=span, cadence=cadence, **fetch_args)
+        if df.empty:
+            print('No more HMI data available.')
+            return
 
         curls = np.empty((df.shape[0], *image_dim_lowres))
         start = datetime.now()
@@ -231,7 +237,7 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
 
         data = {'curls': curls, 'dates': np.array(df.DATE__OBS)}
 
-        with open(os.path.join(folder, '{:%Y-%m-%d}.pkl'.format(date)), 'wb') as f:
+        with open(os.path.join(folder, 'curls_{:%Y-%m-%d}.pkl'.format(date)), 'wb') as f:
             pickle.dump(data, f)
         print('\nSaved pickle file.')
 
