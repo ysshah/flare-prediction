@@ -149,10 +149,11 @@ def main(train, test):
 	saver = tf.train.Saver()
 	try:
 		saver.restore(sess, 'model.ckpt')
+		print('Sucessfully restored model parameters from save file')
 	except:
-		pass
+		print('Unable to find/restore model parameters from save file')
 
-	for i in range(100000):
+	for i in range(1000000):
 		batch = train.next_batch(50)
 		if (i % 100 == 0):
 			summary, acc = sess.run([merged, accuracy], feed_dict={
