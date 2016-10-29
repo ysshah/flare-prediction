@@ -249,15 +249,16 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
         date += span
 
 
-def makeCurlAndAIAmovie(start, end_or_span, folder, movieFile='out.mp4'):
+def makeCurlAndAIAmovie(start, end_or_span, folder, movieFile='out.mp4',
+    downscale_factor=16):
     """Make movie of curl images next to AIA images from datetime START to
     datetime or timedelta END_OR_SPAN. Save all frames and MOVIEFILE in FOLDER.
     """
     if not os.path.isdir(folder):
         os.makedirs(folder)
 
-    downscale_factors = (16, 16)
-    width, height = IMAGE_DIM // np.array(downscale_factors)
+    downscale_factors = (downscale_factor, downscale_factor)
+    dimension = IMAGE_DIM // downscale_factor
 
     df_curl = fetch(start=start, end_or_span=end_or_span,
         parse_dates=['DATE__OBS'], **fetch_args)
@@ -297,9 +298,9 @@ def makeCurlAndAIAmovie(start, end_or_span, folder, movieFile='out.mp4'):
         ImageDraw.Draw(aia_img).text((2, 2), 'AIA 171 {:%Y-%m-%d\n%H:%M:%S}'.format(
             df_aia.at[i,'DATE__OBS']), font=font)
 
-        image = Image.new('RGB', (2 * width, height))
+        image = Image.new('RGB', (2 * dimension, dimension))
         image.paste(curl_img, (0, 0))
-        image.paste(aia_img, (width, 0))
+        image.paste(aia_img, (dimension, 0))
         image.save(os.path.join(folder, 'frame_{:04d}.png'.format(i)))
 
         printTimeInfo(start, i+1, df_curl.shape[0])
