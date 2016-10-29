@@ -1,7 +1,9 @@
 import numpy as np
+import matplotlib
 import os
 import sys
 import pickle
+import subprocess
 from glob import glob
 from datetime import datetime, timedelta
 
@@ -10,6 +12,9 @@ import pandas as pd
 from skimage.transform import downscale_local_mean
 from astropy.io import fits
 from sunpy.net import hek
+import sunpy.cm
+from PIL import Image, ImageDraw, ImageFont
+from scipy import misc
 
 import pb0r
 from fetch import fetch
@@ -242,3 +247,64 @@ def getCurls(folder='/sanhome/yshah/Curls/'):
         print('\nSaved pickle file.')
 
         date += span
+
+
+def makeCurlAndAIAmovie(start, end_or_span, folder, movieFile='out.mp4'):
+    """Make movie of curl images next to AIA images from datetime START to
+    datetime or timedelta END_OR_SPAN. Save all frames and MOVIEFILE in FOLDER.
+    """
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+
+    downscale_factors = (16, 16)
+    width, height = IMAGE_DIM // np.array(downscale_factors)
+
+    df_curl = fetch(start=start, end_or_span=end_or_span,
+        parse_dates=['DATE__OBS'], **fetch_args)
+    print('Fetched HMI data, {} images total.'.format(df_curl.shape[0]))
+
+    first_date = df_curl.at[0, 'DATE__OBS']
+    offset = first_date - start
+
+    df_aia = fetch('aia.lev1_euv_12s', start=first_date,
+        end_or_span=end_or_span + offset,
+        wavelengths=171, cadence=timedelta(minutes=12), keys=['DATE__OBS'],
+        segments='image', df=True, parse_dates=['DATE__OBS'])
+    print('Fetched AIA data, {} images total.'.format(df_aia.shape[0]))
+
+    font = ImageFont.truetype('/Library/Fonts/Arial.ttf', 12)
+
+    cmap_aia = sunpy.cm.get_cmap('sdoaia171')
+    cmap_aia.set_bad()  # Set masked values to black color
+    norm_aia = matplotlib.colors.LogNorm(vmin=10, vmax=6000, clip=True)
+
+    curl0 = downscale_local_mean(calculateCurl(df_curl, 0), downscale_factors)
+    norm_curl = matplotlib.colors.SymLogNorm(1,
+        vmin=np.nanmin(curl0), vmax=np.nanmax(curl0))
+
+    start = datetime.now()
+    for i in range(df_curl.shape[0]):
+        curl = downscale_local_mean(calculateCurl(df_curl, i), downscale_factors)
+        curl_img = misc.toimage(matplotlib.cm.viridis(norm_curl(np.fliplr(curl))))
+        ImageDraw.Draw(curl_img).text((2, 2), 'Curl {:%Y-%m-%d\n%H:%M:%S}'.format(
+            df_curl.at[i,'DATE__OBS']), font=font)
+
+        f = fits.open(df_aia.at[i,'image'])
+        f[1].verify('silentfix')
+        data = np.flipud(downscale_local_mean(f[1].data, downscale_factors))
+        f.close()
+        aia_img = misc.toimage(cmap_aia(norm_aia(data)))
+        ImageDraw.Draw(aia_img).text((2, 2), 'AIA 171 {:%Y-%m-%d\n%H:%M:%S}'.format(
+            df_aia.at[i,'DATE__OBS']), font=font)
+
+        image = Image.new('RGB', (2 * width, height))
+        image.paste(curl_img, (0, 0))
+        image.paste(aia_img, (width, 0))
+        image.save(os.path.join(folder, 'frame_{:04d}.png'.format(i)))
+
+        printTimeInfo(start, i+1, df_curl.shape[0])
+
+    print('\nMaking movie with ffmpeg')
+    cmd = 'ffmpeg -y -r 30 -i {} -c:v libx264 -pix_fmt yuv420p {}'.format(
+        os.path.join(folder, 'frame_%04d.png'), os.path.join(folder, movieFile))
+    subprocess.call(cmd.split())
