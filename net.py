@@ -104,31 +104,7 @@ def save_distribution(predictions, actual, i):
         plt.close()
 
 
-def main(train, test, clean=False):
-        if clean:
-                print('clearing logdir data, figures, and save files')
-                try:
-                        shutil.rmtree('logdir/train/')
-                except FileNotFoundError:
-                        pass
-                try:
-                        shutil.rmtree('logdir/test/')
-                except FileNotFoundError:
-                        pass
-                for f in os.listdir('figs'):
-                        os.remove(os.path.join('figs/', f))
-                try:
-                        os.remove('checkpoint')
-                except FileNotFoundError:
-                        pass
-                try:
-                        os.remove('model.ckpt')
-                except FileNotFoundError:
-                        pass
-                try:
-                        os.remove('model.ckpt.meta')
-                except FileNotFoundError:
-                        pass
+def main(train, test):
         tf.reset_default_graph()
         sess = tf.InteractiveSession()
 
@@ -206,7 +182,35 @@ def main(train, test, clean=False):
                   x: test.images(), y_: test.labels(), keep_prob: 1.0}))
 
 
+def clean():
+        print('clearing logdir data, figures, and save files')
+        try:
+                shutil.rmtree('logdir/train/')
+        except FileNotFoundError:
+                pass
+        try:
+                shutil.rmtree('logdir/test/')
+        except FileNotFoundError:
+                pass
+        for f in os.listdir('figs'):
+                os.remove(os.path.join('figs/', f))
+        try:
+                os.remove('checkpoint')
+        except FileNotFoundError:
+                pass
+        try:
+                os.remove('model.ckpt')
+        except FileNotFoundError:
+                pass
+        try:
+                os.remove('model.ckpt.meta')
+        except FileNotFoundError:
+                pass
+
+
 if __name__ == '__main__':
         import sys
+        if ('--clean' in sys.argv):
+            clean()
         train, test = datareader.get_data_sets()
-        main(train, test, clean=('--clean' in sys.argv))
+        main(train, test)
