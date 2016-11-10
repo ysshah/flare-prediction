@@ -84,10 +84,13 @@ def get_data_sets(train_percentage=0.8):
 
 	print('Reshaping data... ', end='')
 	dropped = 0
+        sin_norm = np.zeros((256,256))
+        sin_norm[:] = np.sin(np.arange(0,np.pi,np.pi/256))
+        sin_norm = np.transpose(sin_norm) # sin norm reduces the values of north/south activity
 	curls_reshaped = np.zeros((len(curls)-3, 256, 256, 4))
 	for i in range(len(curls) - 3):
 		bundle = np.zeros((256, 256, 4))
-		bundle[:,:,0] = curls[i]
+		bundle[:,:,0] = curls[i] * sin_norm
 		date_o = date_list[i]
 		for j in range(1,4):
 			date_t = date_list[i+j]
@@ -95,7 +98,7 @@ def get_data_sets(train_percentage=0.8):
 			seconds = td.total_seconds() - 21600 * j
 			# append next image if it's within an hour of being 6 hours before
 			if np.abs(seconds) <= 3600:
-				bundle[:,:,j] = curls[i+j]
+				bundle[:,:,j] = curls[i+j] * sin_norm
 			else:
 				dropped += 1
 		curls_reshaped[i,:,:,:] = bundle
