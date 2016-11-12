@@ -8,6 +8,7 @@ import os
 from sunpy.time import parse_time
 import bisect
 from datetime import timedelta
+import os
 
 
 class DataSet(object):
@@ -61,7 +62,7 @@ class DataSet(object):
 
 
 def get_data_sets(train_percentage=0.8):
-        """Returns DataSet objects for the train and test data
+        """Returns DataSet objects for the train and test data for flares
         train_percentage: decimal indicating the split between the train and test data
         """
         # get the data in the pickle files and concatenate them together
@@ -178,20 +179,19 @@ def let2sparse(letrCls):
         return ray
 
 
-def read_data_sets():
-        """Reads the proprocessed, saved train and test data from a single file.
-        """
-        with open('netdata.pkl', 'rb') as f:
-                train, test = pickle.load(f)
-        return train, test
-
-
-if __name__ == '__main__':
-        """CURRENTLY NOT WORKING
-        Should get the data from get_data_sets and store it in a file,
-        for easy access later.
-        """
-        train, test = get_data_sets()
-        with open('netdata.pkl', 'wb') as f:
-                pickle.dump((train, test), f)
-        #open(r'netdata.pkl', 'w+b').write((train, test))
+def get_speed_data(train_percentage=0.8):
+        df = pd.read_csv('omni2_all_years.dat', delim_whitespace=True)
+        path = '/sanhome/cheung/public_html/AIA/synoptic_ML/'
+        pics = [f for f in os.listdir(path) if f[:4] == 'sdo_']
+        image_data = np.zeros((len(pics), 128, 128, 8))
+        # make array for label data
+        for i in range(len(pics)):
+                image = np.np.memmap(os.path.join(path, pics[0]),
+                            dtype=np.uint8, mode='r', shape=(128,128,8))
+                image_data[i] = image
+                time = parse_time(pic[17:-4])
+                tt = time.timetuple()
+                day = tm_yday
+                year = time.year
+                ## get the label values for the year and day
+        # create dataset objects

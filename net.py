@@ -155,7 +155,7 @@ def main(train, test):
                 saver.restore(sess, 'model.ckpt')
                 print('Sucessfully restored model parameters from save file')
         else:
-                print('Unable to find/restore model parameters from save file')
+                print('Unable to find and restore model parameters from save file')
 
         for i in range(1000000):
                 batch = train.next_batch(50)
@@ -163,7 +163,7 @@ def main(train, test):
                         summary, acc = sess.run([merged, accuracy], feed_dict={
                                         x: test.images(), y_: test.labels(), keep_prob: 1.0})
                         test_writer.add_summary(summary, i)
-                        print("step {}, training accuracy {:.3f}".format(i, acc))
+                        print("step {}, training accuracy {:.3f}, prediction arr {}".format(i, acc, y_conv.eval(feed_dict={x: batch[0][:1], keep_prob: 1.0})))
 
                         predictions = tf.argmax(y_conv, 1).eval(feed_dict={
                                         x: batch[0], keep_prob: 1.0})
@@ -184,28 +184,18 @@ def main(train, test):
 
 def clean():
         print('clearing logdir data, figures, and save files')
-        try:
+        if os.path.exists('logdir/train/'):
                 shutil.rmtree('logdir/train/')
-        except FileNotFoundError:
-                pass
-        try:
-                shutil.rmtree('logdir/test/')
-        except FileNotFoundError:
-                pass
+        if os.path.exists('logdir/test'):
+                shutil.rmtree('logdir/test')
         for f in os.listdir('figs'):
                 os.remove(os.path.join('figs/', f))
-        try:
+        if os.path.exists('checkpoint'):
                 os.remove('checkpoint')
-        except FileNotFoundError:
-                pass
-        try:
+        if os.path.exists('model.ckpt'):
                 os.remove('model.ckpt')
-        except FileNotFoundError:
-                pass
-        try:
+        if os.path.exists('model.ckpt.meta'):
                 os.remove('model.ckpt.meta')
-        except FileNotFoundError:
-                pass
 
 
 if __name__ == '__main__':
