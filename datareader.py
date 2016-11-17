@@ -9,6 +9,7 @@ from sunpy.time import parse_time
 import bisect
 from datetime import timedelta
 import os
+import pandas as pd
 
 
 class DataSet(object):
@@ -187,22 +188,27 @@ def get_speed_data(train_percentage=0.8):
         path = '/sanhome/cheung/public_html/AIA/synoptic_ML/'
         pics = [f for f in os.listdir(path) if f[:4] == 'sdo_']
         image_data = np.zeros((len(pics), 128, 128, 8))
-        labels = np.zeros((len(pics), 3))
+        labels = np.zeros((len(pics), 4))
+        maxes, maxis = np.zeros(4), np.zeros((4,2)) # for finding the dates for the max values
+        cols = ['9', '39', '40', '41']
         for i in range(len(pics)):
-                image = np.np.memmap(os.path.join(path, pics[i]),
+                image = np.memmap(os.path.join(path, pics[i]),
                             dtype=np.uint8, mode='r', shape=(128,128,8))
                 image_data[i] = image
-                time = parse_time(pic[17:-4])
+                time = parse_time(pics[i][17:-4]) + timedelta(days=5)
                 tt = time.timetuple()
-                day = tm_yday
+                day = tt.tm_yday
                 year = time.year
                 # get the label values for the year and day
                 dft = df.loc[(df['1']==year) & (df['2']==day) & (df['3']==0)]
-                mag_field = dft['9'].values[0]
-                kp_idx = dft['39'].values[0]
-                sunspot_num = dft['40'].values[0]
-                dst_idx = dft['41'].values[0]
-                labels[i] = np.array(mag_field, kp_idx, sunspot_num, dst_idx)
+                values = np.zeros(4)
+                for i in range(4):
+                        values[i] = dft[cols[i]].values[0]
+                        if values[i] > maxes[i]: ####
+                                maxes[i] = values[i]
+                                maxis[i] = (dft['1'], dft['2'])
+                labels[i] = values
+        print(maxis) #######
         # shuffle initial order
         perm = np.arange(len(image_data))
         np.random.shuffle(perm)

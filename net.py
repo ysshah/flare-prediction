@@ -104,24 +104,36 @@ def save_distribution(predictions, actual, i):
         plt.close()
 
 
-def main(train, test):
+def main(train, test, wind_speed=False):
         tf.reset_default_graph()
         sess = tf.InteractiveSession()
 
-        # 256x256 is image size; 4 in number of channels bundled together
-        x = tf.placeholder(tf.float32, shape=[None, 256, 256, 4],
+        if wind_speed:
+            pix = 128
+            channels = 8
+        else:
+            pix = 256
+            channels = 4
+
+        # pix*pix is image size; channels is number of channels bundled together
+        x = tf.placeholder(tf.float32, shape=[None, pix, pix, channels],
                         name='images')
-        x_image = tf.reshape(x, [-1, 256, 256, 1], 'sketch_image')
-        tf.image_summary('curls', tf.reshape(x, [-1, 256, 256, 1]))
-        # 4 output categories: no flare, C, M, or X
+        x_image = tf.reshape(x, [-1, pix, pix, 1], 'sketch_image')
+        tf.image_summary('curls', tf.reshape(x, [-1, pix, pix, 1]))
+        # 4 output categories: no flare, C, M, or X for flares
+        # or magnetic field, kp index, sunspot number, and dst index for wind speed
         y_ = tf.placeholder(tf.float32, shape=[None, 4], name='labels')
 
         conv_pool1 = nn_layer(x, [8, 8, 4, 32], 'conv_pool_1', stride=4)
         conv_pool2 = nn_layer(conv_pool1, [4, 4, 32, 64], 'conv_pool_2', stride=2)
         conv_pool3 = nn_layer(conv_pool2, [4, 4, 64, 64], 'conv_pool_3', stride=2)
 
-        pool3_flat = tf.reshape(conv_pool3, [-1, 2*2*64])
-        fc1 = nn_layer(pool3_flat, [2*2*64, 1024], 'fc_relu')
+        if wind_speed:
+                pool3_flat = tf.reshape(conv_pool3, [-1, 64])
+                fc1 = nn_layer(pool3_flat, [64, 1024], 'fc_relu')
+        else:
+                pool3_flat = tf.reshape(conv_pool3, [-1, 2*2*64])
+                fc1 = nn_layer(pool3_flat, [2*2*64, 1024], 'fc_relu')
 
         with tf.name_scope('dropout'):
                 keep_prob = tf.placeholder(tf.float32, name='keep_prob')
@@ -139,8 +151,12 @@ def main(train, test):
                 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
         with tf.name_scope('accuracy'):
-                with tf.name_scope('correct_prediction'):
-                        correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
+                if wind_speed:
+                        with tf.name_scope('corrent_prediction'):
+                                correct_prediction = y_ / (y_ - y_conv)
+                else:
+                        with tf.name_scope('correct_prediction'):
+                                correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
                 with tf.name_scope('accuracy'):
                         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
                 tf.scalar_summary('accuracy', accuracy)
@@ -200,7 +216,15 @@ def clean():
 
 if __name__ == '__main__':
         import sys
+        if ('--help' in sys.argv) or ('-h' in sys.argv):
+            print('Available commands: --clean to clear logdir data, \
+                    figures, and model save files. \
+                    --wind_speed to train on windspeed and SDO data.')
         if ('--clean' in sys.argv):
             clean()
-        train, test = datareader.get_data_sets()
-        main(train, test)
+        wind_speed = ('--wind_speed' in sys.argv)
+        if wind_speed:
+            train, test = datareader.get_speed_data()
+        else:
+            train, test = datareader.get_data_sets()
+        main(train, test, wind_speed=wind_speed)
