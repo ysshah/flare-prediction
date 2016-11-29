@@ -11,7 +11,6 @@ from datetime import timedelta
 import os
 import pandas as pd
 
-
 class DataSet(object):
         """Class for handling data
         Neatly groups x and y data, shuffles data after each epoch, and
@@ -187,14 +186,15 @@ def get_speed_data(train_percentage=0.8):
         df.columns = np.arange(1, 56).astype(np.str) # set columns to numbers
         path = '/sanhome/cheung/public_html/AIA/synoptic_ML/'
         pics = [f for f in os.listdir(path) if f[:4] == 'sdo_']
-        image_data = np.zeros((len(pics), 128, 128, 8))
+        image_data = np.zeros((len(pics), 256, 256, 8))
         labels = np.zeros((len(pics), 4))
         maxes, maxis = np.zeros(4), np.zeros((4,2)) # for finding the dates for the max values
         cols = ['9', '39', '40', '41']
         for i in range(len(pics)):
                 image = np.memmap(os.path.join(path, pics[i]),
                             dtype=np.uint8, mode='r', shape=(128,128,8))
-                image_data[i] = image
+                # upsample to 256x256 for the net
+                image_data[i] = image.repeat(2, axis=0).repeat(2, axis=1)
                 time = parse_time(pics[i][17:-4]) + timedelta(days=5)
                 tt = time.timetuple()
                 day = tt.tm_yday
@@ -202,11 +202,11 @@ def get_speed_data(train_percentage=0.8):
                 # get the label values for the year and day
                 dft = df.loc[(df['1']==year) & (df['2']==day) & (df['3']==0)]
                 values = np.zeros(4)
-                for i in range(4):
-                        values[i] = dft[cols[i]].values[0]
-                        if values[i] > maxes[i]: ####
-                                maxes[i] = values[i]
-                                maxis[i] = (dft['1'], dft['2'])
+                for j in range(4):
+                        values[j] = dft[cols[j]].values[0]
+                        if values[j] > maxes[j]: ####
+                                maxes[j] = values[j]
+                                maxis[j] = (dft['1'], dft['2'])
                 labels[i] = values
         print(maxis) #######
         # shuffle initial order
