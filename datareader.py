@@ -61,7 +61,7 @@ class DataSet(object):
                 return self._images[start:end], self._labels[start:end]
 
 
-def get_data_sets(train_percentage=0.8):
+def get_data_sets(train_percentage=0.8, raw=False, channels=4):
         """Returns DataSet objects for the train and test data for flares
         train_percentage: decimal indicating the split between the train and test data
         """
@@ -88,12 +88,12 @@ def get_data_sets(train_percentage=0.8):
         sin_norm = np.zeros((256,256))
         sin_norm[:] = np.sin(np.arange(0,np.pi,np.pi/256))
         sin_norm = np.transpose(sin_norm) # sin norm reduces the values of north/south activity
-        curls_reshaped = np.zeros((len(curls)-3, 256, 256, 4))
-        for i in range(len(curls) - 3):
-                bundle = np.zeros((256, 256, 4))
+        curls_reshaped = np.zeros((len(curls)-channels+1, 256, 256, channels))
+        for i in range(len(curls) - channels + 1):
+                bundle = np.zeros((256, 256, channels))
                 bundle[:,:,0] = curls[i] * sin_norm
                 date_o = date_list[i]
-                for j in range(1,4):
+                for j in range(1, channels):
                         date_t = date_list[i+j]
                         td = date_o - date_t
                         seconds = td.total_seconds() - 21600 * j
@@ -103,7 +103,7 @@ def get_data_sets(train_percentage=0.8):
                         else:
                                 dropped += 1
                 curls_reshaped[i,:,:,:] = bundle
-        dates_reshaped = date_list[:-3]
+        dates_reshaped = date_list[:-(channels - 1)]
         print('{} skipped.'.format(dropped))
 
         # fetch the flare size and create the label data
@@ -142,6 +142,10 @@ def get_data_sets(train_percentage=0.8):
         curls_reshaped = curls_reshaped[perm]
         flare_a = flare_a[perm]
         dates_reshaped = dates_reshaped[perm]
+
+        if raw:
+            """Return the raw data"""
+            return curls_reshaped, flare_a
 
         # find train/test divide location and split the data
         print('Splitting the data')
