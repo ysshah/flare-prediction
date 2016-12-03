@@ -20,23 +20,26 @@ import numpy as np
 import tensorflow as tf
 
 
-for i in range(4):
-    os.mkdir(os.path.join(out_dir, 'label_{}'.format(i)))
+label_names = ['no_flare/', 'c_flare/', 'm_flare/', 'x_flare/']
+
+for label in label_names:
+    os.mkdir(os.path.join(out_dir, 'train/' + label))
 images, labels = datareader.get_data_sets(raw=True, channels=3)
 
-"""
-data_t = tf.placeholder(tf.uint8)
-op = tf.image.encode_jpeg(data_t, format='rgb')
-sess = tf.InteractiveSession()
-sess.run(tf.initialize_all_variables())
 for i in range(len(labels)):
-    label_dir = out_dir + 'label_{}/'.format(np.argmax(labels[i]))
-    name = label_dir, 'image_{}'.format(i)
-    with open('name', 'wb') as f:
-        data_np = sess.run(op, images[i].astype(np.uint8))
-        f.write(data_np)
-"""
-for i in range(len(labels)):
-    label_dir = out_dir + 'label_{}/'.format(np.argmax(labels[i]))
+    this_label = label_names[np.argmax(labels[i])]
+    label_dir = out_dir + 'train/' + this_label
     name = label_dir + 'image_{}.jpg'.format(i)
     plt.imsave(name, images[i])
+
+def move_files(train_path, label):
+    """Moves 20% of the data into a new parent directory with the same structure
+    for validation
+    """
+    lst = os.listdir(train_path + label)
+    movers = lst[0:int(len(lst)/5)]
+    for fle in movers:
+        os.rename(train_path+label+fle, train_path+'../validation/'+label+fle)
+
+for label in label_names:
+    move_files(out_dir + 'train/', label)
