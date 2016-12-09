@@ -224,3 +224,75 @@ def get_speed_data(train_percentage=0.8):
         train = DataSet(image_data[:split], labels[:split])
         test = DataSet(image_data[split:], labels[split:])
         return train, test
+
+
+def get_hmi_data():
+        # get the list of the files
+        # compile list of dates
+        # get max flare class for each date
+        # move each file to right location based on max flare size
+        from scipy.misc import imresize
+        from scipy.ndimage import imread
+        from scipy.misc import imsave
+        from sunpy.net import hek
+        client = hek.HEKClient()
+
+        with open('hmi_paths.txt') as f:
+                paths = f.readlines()
+
+        for i in range(len(paths)):
+                path = paths[i][:-1]
+                tstart = parse_time(path[46:56]) + timedelta(hours=int(path[58:60]))
+                tend = tstart + timedelta(days=1)
+                result = client.query(hek.attrs.Time(tstart, tend),
+                                      hek.attrs.EventType('FL'))
+                if len(result) == 0:
+                        cls = 'N'
+                else:
+                        goes_cls = [elem['fl_goescls'] for elem in result]
+                        max_idx = np.argmax(goes_cls)
+                        cls = goes_cls[max_idx]
+                        if len(cls) > 0:
+                                cls = cls[0]
+                        else:
+                                cls = 'N'
+
+                img = imread(path)
+                img_resize = imresize(img, (256, 256, 3))
+
+                if cls == 'N':
+                        folder = 'less_than_c'
+                elif cls == 'C':
+                        folder = 'c_class'
+                elif cls == 'M':
+                        folder = 'm_class'
+                else:
+                        folder = 'x_class'
+                imsave('/Users/pauly/hmi_data/{}/{}.jpg'.format(folder, tstart), img_resize)
+
+                print('\r{}%'.format(int(100*i/len(paths))), end='')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

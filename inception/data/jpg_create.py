@@ -23,13 +23,13 @@ import tensorflow as tf
 label_names = ['no_flare/', 'c_flare/', 'm_flare/', 'x_flare/']
 
 for label in label_names:
-    os.mkdir(os.path.join(out_dir, 'train/' + label))
+    if not os.path.exists(out_dir + label):
+        os.mkdir(out_dir + label)
 images, labels = datareader.get_data_sets(raw=True, channels=3)
 
 for i in range(len(labels)):
     this_label = label_names[np.argmax(labels[i])]
-    label_dir = out_dir + 'train/' + this_label
-    name = label_dir + 'image_{}.jpg'.format(i)
+    name = out_dir + this_label + 'image_{}.jpg'.format(i)
     plt.imsave(name, images[i])
 
 def move_files(train_path, label):
@@ -41,5 +41,7 @@ def move_files(train_path, label):
     for fle in movers:
         os.rename(train_path+label+fle, train_path+'../validation/'+label+fle)
 
+"""
 for label in label_names:
     move_files(out_dir + 'train/', label)
+"""
