@@ -275,7 +275,10 @@ def get_hmi_data():
                         folder = 'm_class'
                 else:
                         folder = 'x_class'
-                imsave('/Users/pauly/hmi_data/{}/{}.jpg'.format(folder, tstart), img_resize)
+                imsave('/Users/pauly/Dropbox/deep/hmi_data/{}/{}_0.jpg'.format(folder, tstart), img_resize)
+                imsave('/Users/pauly/Dropbox/deep/hmi_data/{}/{}_1.jpg'.format(folder, tstart), np.flipud(img_resize))
+                imsave('/Users/pauly/Dropbox/deep/hmi_data/{}/{}_2.jpg'.format(folder, tstart), np.fliplr(img_resize))
+                imsave('/Users/pauly/Dropbox/deep/hmi_data/{}/{}_3.jpg'.format(folder, tstart), np.fliplr(np.flipud(img_resize)))
 
                 print('\r{}%'.format(int(100*i/len(paths))), end='')
 
