@@ -10,6 +10,13 @@ import bisect
 from datetime import timedelta
 import os
 import pandas as pd
+from scipy.misc import imresize
+from scipy.ndimage import imread
+from scipy.misc import imsave
+from sunpy.net import hek
+import sunpy.cm as cm
+import matplotlib.pyplot as plt
+
 
 class DataSet(object):
         """Class for handling data
@@ -226,15 +233,24 @@ def get_speed_data(train_percentage=0.8):
         return train, test
 
 
+def get_max_flare(result):
+        if len(result) == 0:
+                return 'N'
+        goes_cls = [elem['fl_goescls'] for elem in result]
+        max_idx = np.argmax(goes_cls)
+        cls = goes_cls[max_idx]
+        if len(cls) > 0 and cls[0] > 'B':
+                return cls[0]
+        else:
+                return 'N'
+
+
 def get_hmi_data():
         # get the list of the files
         # compile list of dates
         # get max flare class for each date
         # move each file to right location based on max flare size
-        from scipy.misc import imresize
-        from scipy.ndimage import imread
-        from scipy.misc import imsave
-        from sunpy.net import hek
+        
         client = hek.HEKClient()
 
         with open('hmi_paths.txt') as f:
@@ -246,16 +262,7 @@ def get_hmi_data():
                 tend = tstart + timedelta(days=1)
                 result = client.query(hek.attrs.Time(tstart, tend),
                                       hek.attrs.EventType('FL'))
-                if len(result) == 0:
-                        cls = 'N'
-                else:
-                        goes_cls = [elem['fl_goescls'] for elem in result]
-                        max_idx = np.argmax(goes_cls)
-                        cls = goes_cls[max_idx]
-                        if len(cls) > 0:
-                                cls = cls[0]
-                        else:
-                                cls = 'N'
+                cls = get_max_flare(result)
 
                 img = imread(path)
                 img_resize = imresize(img, (256, 256, 3))
@@ -273,26 +280,55 @@ def get_hmi_data():
                 print('\r{}%'.format(int(100*i/len(paths))), end='')
 
 
+def get_hybrid_data(skip_one_path=False):
+        """Gets SDO multichannel and flare size data
+        Combines HMI magnetograms and AIA 171 images
 
+        Had trouble with images produced with the scipy imsave routine
+        Works ok with plt.imsave
 
+        If it fails with a UnicodeDecodeError, just rerun the routine with
+        skip_one_path set to true so that it skips that date the next time
+        """
+        client = hek.HEKClient()
+        cmap = cm.get_cmap('sdoaia171')
 
+        path = '/sanhome/cheung/public_html/AIA/synoptic_ML/'
+        if os.path.exists('remaining_paths.txt'):
+                print('picking up from before')
+                with open('remaining_paths.txt', 'r') as f:
+                        pics = f.read().split('\n')
+        else:
+                print('starting from beginning')
+                pics = [f for f in os.listdir(path) if f[:4] == 'sdo_']
+        print('{} images found'.format(len(pics)))
+        if skip_one_path:
+                print(pics[0])
+                pics = pics[1:]
+        for i in range(len(pics)):
+                image = np.memmap(os.path.join(path, pics[i]),
+                            dtype=np.uint8, mode='r', shape=(128,128,8))
+                tstart = parse_time(pics[i][17:-4])
+                tend = tstart + timedelta(days=1)
+                try:
+                        result = client.query(hek.attrs.Time(tstart, tend),
+                                              hek.attrs.EventType('FL'))
+                except UnicodeDecodeError:
+                        print('UnicodeDecodeError')
+                        with open('remaining_paths.txt', 'w') as f:
+                                f.write('\n'.join(pics[i:]))
+                        import sys
+                        sys.exit()
+                cls = get_max_flare(result)
+                img = cmap(image[:,:,2]) # apply 171 cmap to 171 channel
+                img2 = np.zeros((128,128,3)) # create array for hmi magnetogram
+                img2[:,:,2] = image[:,:,7] # stuff magnetogram into blue channel
+                img3 = img[:,:,:-1] + img2 # add 171 and magnetogram together and remove alpha
+                
+                save_path = '/Users/pauly/hybrid_data'
+                plt.imsave('{}/{}/{}_orig.jpg'.format(save_path, cls, tstart), np.flipud(img3))
+                plt.imsave('{}/{}/{}_ud.jpg'.format(save_path, cls, tstart), img3)
+                plt.imsave('{}/{}/{}_lr.jpg'.format(save_path, cls, tstart), np.flipud(np.fliplr(img3)))
+                plt.imsave('{}/{}/{}_rot180.jpg'.format(save_path, cls, tstart), np.fliplr(img3))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                print('\r{}%'.format(int(100*i/len(pics))), end='')
