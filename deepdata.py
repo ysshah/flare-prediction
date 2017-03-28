@@ -186,22 +186,28 @@ def glob_main():
 
 
 def synoptic_glob():
-    day = datetime(2010,5,13)
+    day = datetime(2010,5,13) # series start date
     series_approx_end = datetime.utcnow() - timedelta(days=24) # series lags by ~24d
-    image_cache = np.zeros((512,512))
-    norm = mov_img.colors.LogNorm(1)
-    client = hek.HEKClient()
+    image_cache = np.zeros((512,512)) # placeholder to add 1600 images to for sum
+    norm = mov_img.colors.LogNorm(1) # log color norm for 1600
+    client = hek.HEKClient() # client for querying flare data
     while day < series_approx_end:
         print(day)
+        # fetch directory location for the desired day's data
         r = fetch.fetch('aia.fits_web', useJSOC2=True, start=day, segments='Images')
         day_dir = r[0]
         for hour in range(24):
             hour_dir = os.path.join(day_dir, 'H{}/'.format(str(hour).zfill(4)))
+            # step through data at 12 minute cadence
             for minute in range(0, 60, 12):
                 fname = 'AIA{}_{}_1600.fits'.format(day.strftime('%Y%m%d'),
                                                     str(hour*100 + minute).zfill(4))
                 image_path = os.path.join(hour_dir, fname)
-                amap = mov_img.Map(image_path)
+                try:
+                    amap = mov_img.Map(image_path)
+                except ValueError:
+                    print(image_path)
+                    raise ValueError('File not found ^^^')
                 data = mov_img.downscale_local_mean(amap.data, (2,2))
                 image_cache += data
             if hour % 6 == 0:
