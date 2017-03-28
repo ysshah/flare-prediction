@@ -130,8 +130,6 @@ def make_the_glob(date_range):
     print(''.join(map(chr, [61, 61, 61, 71, 76, 79, 66, 32, 67, 82,
                             69, 65, 84, 73, 79, 78, 32, 73, 78, 73,
                             84, 73, 65, 84, 69, 68, 61, 61, 61])))
-    import ipdb
-    ipdb.set_trace()
     start, end = date_range
     delta = timedelta(minutes=12)
     last_image_time = start
@@ -185,3 +183,43 @@ def glob_main():
     with mp.Pool(processes=12) as pool:
         for r in pool.imap_unordered(make_the_glob, date_ranges):
             print('Hodor.')
+
+
+def synoptic_glob():
+    day = datetime(2010,5,13)
+    series_approx_end = datetime.utcnow() - timedelta(days=24) # series lags by ~24d
+    image_cache = np.zeros((512,512))
+    norm = mov_img.colors.LogNorm(1)
+    client = hek.HEKClient()
+    while day < series_approx_end:
+        print(day)
+        r = fetch.fetch('aia.fits_web', useJSOC2=True, start=day, segments='Images')
+        day_dir = r[0]
+        for hour in range(24):
+            hour_dir = os.path.join(day_dir, 'H{}/'.format(str(hour).zfill(4)))
+            for minute in range(0, 60, 12):
+                fname = 'AIA{}_{}_1600.fits'.format(day.strftime('%Y%m%d'),
+                                                    str(hour*100 + minute).zfill(4))
+                image_path = os.path.join(hour_dir, fname)
+                amap = mov_img.Map(image_path)
+                data = mov_img.downscale_local_mean(amap.data, (2,2))
+                image_cache += data
+            if hour % 6 == 0:
+                # produce image
+                t = day + timedelta(hours=hour)
+                ch3 = np.flipud(norm(image_cache))
+                ch2 = np.flipud(norm(data))
+                image_cache = np.zeros((512,512))
+                r = fetch.fetch('hmi.M_720s', start=t,
+                                end_or_span=timedelta(minutes=12), segments='magnetogram',
+                                keys=['rsun_obs','cdelt1','quality','date__obs'])
+                if not no_images(r):
+                    ch1 = mov_img.process_hmi(r[0][-1], float(r[0][0]), float(r[0][1]),
+                                              downscale=(8,8), single_channel=True)
+                    result = client.query(hek.attrs.Time(t, t + timedelta(days=1)),
+                                          hek.attrs.EventType('FL'))
+                    cls = get_max_flare(result)
+                    out_path = '/Users/pauly/repos/aia/data/glob/{}/{}'.format(cls, r[0][-2])
+                    img = mov_img.misc.toimage(np.array([ch1, ch2, ch3]))
+                    img.save('{}.jpg'.format(out_path))
+        day += timedelta(days=1)
